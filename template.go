@@ -11,11 +11,10 @@ var (
 	errEmptyFilePath = errors.New("file path is empty")
 )
 
-// Нужно связать строки и регулярки таким образом, чтобы я мог получить строки по регулярке
 type Template struct {
-	Strings []*string
-	Bytes   [][]byte
-	mapping map[int]int // map string -> regexp
+	Strings []*string   // Addresses of unique strings in a template. Pointers used to reduce memory of the app.
+	Bytes   [][]byte    // Bytes presentation of unique strings in a template
+	mapping map[int]int // mapping from original template strings to unique string addresses
 	len     int
 }
 
@@ -37,12 +36,11 @@ func ReadTemplateFromFile(filePath string) (*Template, error) {
 		return nil, err
 	}
 
-	strTmpl := string(rawTmpl)
-	splitedTmpl := strings.Split(strTmpl, "\n")
+	splittedTmpl := strings.Split(string(rawTmpl), "\n")
 
-	splitedTmpl = deleteEmptyRows(splitedTmpl)
+	splittedTmpl = deleteEmptyRows(splittedTmpl)
 
-	us := uniqueStrings(splitedTmpl)
+	us := uniqueStrings(splittedTmpl)
 
 	lenus := len(us)
 
@@ -54,7 +52,7 @@ func ReadTemplateFromFile(filePath string) (*Template, error) {
 	}
 
 	lm := make(map[int]int)
-	for i, s := range splitedTmpl {
+	for i, s := range splittedTmpl {
 		for j, expr := range result {
 			if *expr != s {
 				continue
@@ -64,7 +62,7 @@ func ReadTemplateFromFile(filePath string) (*Template, error) {
 		}
 	}
 
-	return &Template{Strings: result, Bytes: bytes, mapping: lm, len: len(splitedTmpl)}, nil
+	return &Template{Strings: result, Bytes: bytes, mapping: lm, len: len(splittedTmpl)}, nil
 }
 
 func deleteEmptyRows(tmpl []string) []string {

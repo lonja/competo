@@ -19,6 +19,8 @@ func NewSearch(r io.ReadCloser) *Search {
 	}
 }
 
+// buildIndex indexes whole file
+// Index helps to find all occurences of template
 func (s *Search) buildIndex(tmpl *Template) {
 	scanner := bufio.NewScanner(s.r)
 	li := 0
@@ -41,38 +43,47 @@ func (s *Search) buildIndex(tmpl *Template) {
 	_ = s.r.Close()
 }
 
+// Count function counts quantity of occurences of template in the file
 func (s *Search) Count(tmpl *Template) int {
 	s.buildIndex(tmpl)
 
 	count := 0
 
-	for ln := 0; ln < len(s.index); ln++ {
-		for tmplStr, coordinates := range s.index[ln] {
+	indexlen := len(s.index)
+	// Move by indexed file
+	for line := 0; line < indexlen; line++ {
+		// Loop by different tmpl matches in one line
+		// Coordinates - list of indexes(start,end) our tmpl in line.
+		for tmplStr, coords := range s.index[line] {
+			// Checks that indexed line contains first line of template
 			if tmplStr != tmpl.GetString(0) {
 				continue
 			}
 
-			for ci := 0; ci < len(coordinates); ci++ {
+			// Iterate by coords
+			for ci := 0; ci < len(coords); ci++ {
 				matched := 1
-				ln := ln + 1
+
+				// Move line-by-line to the file end to match whole template
+				ln := line + 1
 				for i := 0; i < tmpl.Len()-1; i++ {
 					if ln >= len(s.index) {
 						break
 					}
 
-					nextOccurences := s.index[ln]
+					nextOccurs := s.index[ln]
 
-					nextCoordinates, ok := nextOccurences[tmpl.GetString(matched)]
+					nextCoords, ok := nextOccurs[tmpl.GetString(matched)]
 					if !ok {
 						break
 					}
 
-					if len(nextCoordinates) == 1 && coordinates[ci] != nextCoordinates[0] {
+					if len(nextCoords) == 1 && coords[ci] != nextCoords[0] {
 						break
 					}
 
-					for nci := 0; nci < len(nextCoordinates); nci++ {
-						if !(coordinates[ci] == nextCoordinates[nci]) {
+					for nci := 0; nci < len(nextCoords); nci++ {
+						if !(coords[ci] == nextCoords[nci]) {
 							continue
 						}
 						matched++
@@ -90,33 +101,34 @@ func (s *Search) Count(tmpl *Template) int {
 	return count
 }
 
-// По сравнению с регулярками нужно на 40% меньше памяти
+// This function implemented to use instead of regexp.Regexp.FindAllStringIndex function.
+// That reduced memory usage by 30%
 func findAllIndexes(s, substr []byte) []int {
-	// Индекс предыдущего элемента в общей строке
-	index := bytes.Index(s, substr)
-	if index == -1 {
+	// Index of current match substr in s
+	idx := bytes.Index(s, substr)
+	if idx == -1 {
 		return nil
 	}
 
 	lens := len(s)
 	lensubstr := len(substr)
-	result := make([]int, 0, lens/(2*lensubstr)+1)
+	// Preallocate memory to decrease allocations count
+	res := make([]int, 0, lens/(2*lensubstr)+1)
 
-	result = append(result, index)
+	res = append(res, idx)
 
-	// i - сдвиг относительно начала исходной строки
-	// index - индекс текущего элемента
-	// lastIndex - индекс предыдущего элемента
-	prevIndex := index
-	for i := prevIndex + lensubstr; i < lens; i = prevIndex + lensubstr {
-		index = bytes.Index(s[i:], substr)
-		if index == -1 {
+	// i – shift from beginning of string
+	// prevIdx – index of previous match substr in s
+	prevIdx := idx
+	for i := prevIdx + lensubstr; i < lens; i = prevIdx + lensubstr {
+		idx = bytes.Index(s[i:], substr)
+		if idx == -1 {
 			break
 		}
-		index += i
-		result = append(result, index)
-		prevIndex = index
+		idx += i
+		res = append(res, idx)
+		prevIdx = idx
 	}
 
-	return result
+	return res
 }
